@@ -125,7 +125,9 @@ public class OverlayService extends Service implements View.OnTouchListener {
         flutterView.setFocusableInTouchMode(true);
         flutterView.setBackgroundColor(Color.TRANSPARENT);
         flutterChannel.setMethodCallHandler((call, result) -> {
-            if (call.method.equals("updateFlag")) {
+          if(call.method.equals("screenShot")){
+              result.success(true);
+          } else if (call.method.equals("updateFlag")) {
                 String flag = call.argument("flag").toString();
                 updateOverlayFlag(result, flag);
             } else if (call.method.equals("updateOverlayPosition")) {
@@ -440,5 +442,143 @@ public class OverlayService extends Service implements View.OnTouchListener {
         }
     }
 
+
+    //for ScreenShot
+    private void registerReceiver() {
+        IntentFilter filter = new IntentFilter("ACTION_CAPTURE_PERMISSION_RESULT");
+        receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Log.i("SS_PROCESS", "registerReceiver onReceive");
+                resultCode = intent.getIntExtra("resultCode", Activity.RESULT_CANCELED);
+                data = intent.getParcelableExtra("data");
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    Log.i("SS_PROCESS", "registerReceiver onReceive if " + resultCode + " - " + data + " - " + data.getExtras());
+                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            mediaProjection = projectionManager.getMediaProjection(resultCode, data);
+                            isCaptured = false;
+                            magnifierView.hideMagnifier();
+                            startCapture(toMagnify);
+                        }
+                    }, 1000);
+                }
+            }
+        };
+        registerReceiver(receiver, filter);
+    }
+
+    private void startProjection() {
+        try {
+//            mediaProjection = projectionManager.getMediaProjection(resultCode, data);
+//            if (mediaProjection != null) {
+//                Log.i("SS_PROCESS", "startProjection mediaProjection=" + mediaProjection);
+//                startCapture(magnify);
+//            } else {
+//                Log.i("SS_PROCESS", "startProjection mediaProjection = null");
+            startProjectionPermissionActivity();
+//            }
+        } catch (Exception e) {
+            Log.e("SS_PROCESS", "Exception while getting MediaProjection", e);
+        }
+    }
+
+    private void startProjectionPermissionActivity() {
+        Log.i("SS_PROCESS", "startProjectionPermissionActivity");
+        Intent intent = new Intent(this, ProjectionPermissionActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent);
+    }
+
+    private void startCapture(boolean magnify) {
+        Log.i("SS_PROCESS", "captureScreenshot");
+        if (mediaProjection == null) {
+            Log.i("SS_PROCESS", "captureScreenshot MediaProjection is null");
+            return;
+        }
+        hideAll();
+        DisplayMetrics metrics = getResources().getDisplayMetrics();
+        int screenDensity = metrics.densityDpi;
+        int displayWidth = metrics.widthPixels;
+        int displayHeight = metrics.heightPixels;
+
+        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override
+            public void run() {
+
+                ImageReader imageReader = ImageReader.newInstance(displayWidth, displayHeight, PixelFormat.RGBA_8888, 1);
+
+                VirtualDisplay virtualDisplay = mediaProjection.createVirtualDisplay(
+                        "ScreenCapture",
+                        displayWidth, displayHeight, screenDensity,
+                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                        imageReader.getSurface(), null, null
+                );
+
+                imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+                    @Override
+                    public void onImageAvailable(ImageReader reader) {
+                        Image image = null;
+                        try {
+                            image = reader.acquireLatestImage();
+                            if (image != null && !isCaptured) {
+                                // Process the image here
+                                Image.Plane[] planes = image.getPlanes();
+                                ByteBuffer buffer = planes[0].getBuffer();
+                                int pixelStride = planes[0].getPixelStride();
+                                int rowStride = planes[0].getRowStride();
+                                int rowPadding = rowStride - pixelStride * displayWidth;
+
+                                Bitmap bitmap = Bitmap.createBitmap(displayWidth + rowPadding / pixelStride, displayHeight, Bitmap.Config.ARGB_8888);
+                                bitmap.copyPixelsFromBuffer(buffer);
+                                showAllIcons();
+                                if(magnify) {
+                                    isCaptured = true;
+                                    showAllIcons();
+                                    Log.i("SS_PROCESS", "startCapture showAllIcons");
+                                    sendBitmapToMagnifyingView(bitmap);
+                                }else{
+                                    isCaptured = true;
+                                    showAllIcons();
+                                    Log.i("SS_PROCESS", "startCapture showAllIcons");
+                                    sendBitmapForScreenShot(bitmap);
+                                }
+
+//                       String ss = BitMapToString(bitmap);
+//                       Log.i("SS_PROCESS_bitmap",ss);
+
+                                image.close();
+
+                                // Stop VirtualDisplay after capturing the first screenshot
+                                //imageReader.setOnImageAvailableListener(null, null);
+//                        if (virtualDisplay != null) {
+//                            virtualDisplay.release();
+//                        }
+//                        if (mediaProjection != null) {
+//                            mediaProjection.stop();
+//                        }
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        } finally {
+                            if (image != null) {
+                                image.close();
+                            }
+                        }
+                    }
+                }, null);
+            }
+        }, 300);
+        showAllIcons();
+    }
+
+    public String BitMapToString(Bitmap bitmap) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+        byte[] b = baos.toByteArray();
+        String temp = Base64.encodeToString(b, Base64.DEFAULT);
+        return temp;
+    }
 
 }

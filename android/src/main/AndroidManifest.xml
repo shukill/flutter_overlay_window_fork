@@ -4,4 +4,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+
+<!--    <service  android:name="oem.wriety.floater.FloatingWindow" android:enabled="true" android:exported="true" android:stopWithTask="true"-->
+<!--        android:foregroundServiceType="mediaProjection"/>-->
+
+<!--    <activity android:name="oem.wriety.floater.ProjectionPermissionActivity"-->
+<!--        android:theme="@style/Theme.AppCompat.NoActionBar"-->
+<!--        android:exported="true" >-->
+<!--    </activity>-->
 </manifest>

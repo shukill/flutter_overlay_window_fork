@@ -109,6 +109,14 @@ class FlutterOverlayWindow {
     return _controller.stream;
   }
 
+  /// Get Device Screenshot
+  static Future<bool?> screenShot() async {
+    final bool? _res = await _overlayChannel
+        .invokeMethod<bool?>('screenShot');
+    return _res;
+  }
+
+
   /// Update the overlay flag while the overlay in action
   static Future<bool?> updateFlag(OverlayFlag flag) async {
     final bool? _res = await _overlayChannel
